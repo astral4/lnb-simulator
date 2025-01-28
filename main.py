@@ -135,6 +135,7 @@ def prob_greater(t1, p1, t2, p2):
 
     return curr_prob
 
+
 # Prints the probability that, given a starting section index and life count,
 # restarting the run will lead to more time spent overall than continuing (and vice versa).
 def main(section, lives):
