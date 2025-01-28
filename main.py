@@ -1,26 +1,37 @@
 from collections import defaultdict
 import numpy as np
 
+# ========== INPUTS ========== #
+
+# The maximum number of lives that can be held at a time.
+MAX_LIVES = 9
+
 # The number of lives at the start of a run.
-# We assume lives are not gained during the run.
 LIVES = 5
 
-# The list of sections of the game, each with cap rates and time needed to complete the section.
+# The list of sections of the game, each with cap rates,
+# time needed to complete the section, and lives gained after completing the section.
 SECTIONS = [
-    {"rate": 0.98, "time": 0.4},
-    {"rate": 0.92, "time": 0.4},
-    {"rate": 0.80, "time": 0.5},
-    {"rate": 0.40, "time": 0.3},
-    {"rate": 0.59, "time": 0.7},
-    {"rate": 0.25, "time": 0.5},
-    {"rate": 0.63, "time": 0.4},
-    {"rate": 0.44, "time": 0.6},
+    {"rate": 0.98, "time": 0.4, "life_gain": 0},
+    {"rate": 0.92, "time": 0.4, "life_gain": 0},
+    {"rate": 0.80, "time": 0.5, "life_gain": 1},
+    {"rate": 0.40, "time": 0.3, "life_gain": 0},
+    {"rate": 0.59, "time": 0.7, "life_gain": 0},
+    {"rate": 0.25, "time": 0.5, "life_gain": 1},
+    {"rate": 0.63, "time": 0.4, "life_gain": 0},
+    {"rate": 0.44, "time": 0.6, "life_gain": 0},
 ]
 
 # The number of times to "simulate" going from one section to another.
 # This can also be thought of as the simulation/calculation depth.
 # Increasing this number will make the result more accurate but take longer to compute.
 TRANSITIONS = 200
+
+# ============================ #
+
+# Calculate the maximum number of lives that can be had at any point in the run.
+# This reduces the simulation state space to only what is needed to calculate the answer.
+max_simulation_lives = min(LIVES + sum([gain for section in SECTIONS if (gain := section["life_gain"]) > 0]), MAX_LIVES)
 
 # The cap rate in each section is taken to be the probability of not losing any lives in that section.
 # We assume the existence of a "single miss rate": the probability of losing one life in a section.
@@ -45,8 +56,8 @@ def pdf(init_section, init_lives):
 
     pdist = defaultdict(float)
 
-    state = defaultdict(lambda: np.zeros((len(SECTIONS) + 1, LIVES)))
-    new_state = defaultdict(lambda: np.zeros((len(SECTIONS) + 1, LIVES)))
+    state = defaultdict(lambda: np.zeros((len(SECTIONS) + 1, max_simulation_lives)))
+    new_state = defaultdict(lambda: np.zeros((len(SECTIONS) + 1, max_simulation_lives)))
 
     # Recursion base case
     state[0.0][init_section][init_lives - 1] = 1.0
@@ -57,25 +68,27 @@ def pdf(init_section, init_lives):
                 new_time_complete = round(time + section["time"], 2)
                 new_time_incomplete = round(time + section["time"] / 2, 2)
 
-                for life_count in range(LIVES):
+                for life_count in range(max_simulation_lives):
                     old_prob = probs[s_idx][life_count]
                     prob_some_lives_lost = 0.0
 
                     # Section cleared; no lives lost
-                    new_state[new_time_complete][s_idx + 1][life_count] += old_prob * section["rate"]
+                    new_life_count = min(life_count + section["life_gain"], max_simulation_lives - 1)
+                    new_state[new_time_complete][s_idx + 1][new_life_count] += old_prob * section["rate"]
 
                     # Section cleared; some lives lost
                     for lost_life_count in range(1, life_count):
                         prob_lost_life_count = section_miss_rates[s_idx] ** lost_life_count
                         prob_some_lives_lost += prob_lost_life_count
-                        new_state[new_time_complete][s_idx][life_count - lost_life_count] += old_prob * prob_lost_life_count
+                        new_life_count = min(life_count - lost_life_count + section["life_gain"], max_simulation_lives - 1)
+                        new_state[new_time_complete][s_idx][new_life_count] += old_prob * prob_lost_life_count
 
                     # Section not cleared; all lives lost
                     # We assume that, if we lose during a section, we spend half of the time needed to complete the section.
                     new_state[new_time_incomplete][0][LIVES - 1] += old_prob * (1.0 - section["rate"] - prob_some_lives_lost)
 
         state = new_state
-        new_state = defaultdict(lambda: np.zeros((len(SECTIONS) + 1, LIVES)))
+        new_state = defaultdict(lambda: np.zeros((len(SECTIONS) + 1, max_simulation_lives)))
 
         # Update the probability distribution with times and probabilities of
         # states where all sections were cleared successfully
