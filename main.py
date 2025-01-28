@@ -10,7 +10,7 @@ MAX_LIVES = 9
 LIVES = 5
 
 # The list of sections of the game, each with cap rates,
-# time needed to complete the section, and lives gained after completing the section.
+# time needed to complete the section, and lives gained upon completing the section.
 SECTIONS = [
     {"rate": 0.98, "time": 0.4, "life_gain": 0},
     {"rate": 0.92, "time": 0.4, "life_gain": 0},
@@ -29,6 +29,11 @@ TRANSITIONS = 200
 
 # ============================ #
 
+assert LIVES > 0
+assert len(SECTIONS) > 0
+assert all(0.0 <= section["rate"] <= 1.0 and section["time"] >= 0 and section["life_gain"] >= 0 for section in SECTIONS)
+assert TRANSITIONS >= 0
+
 # Calculate the number of places after the decimal point to round times to.
 # This addresses floating-point operation imprecision,
 # preventing `state` and `new_state` in the simulation from growing to too many entries
@@ -39,7 +44,7 @@ decimal_precision = max([str(section["time"])[::-1].find(".") for section in SEC
 
 # Calculate the maximum number of lives that can be had at any point in the run.
 # This reduces the simulation state space to only what is needed to calculate the answer.
-max_simulation_lives = min(LIVES + sum([gain for section in SECTIONS if (gain := section["life_gain"]) > 0]), MAX_LIVES)
+max_simulation_lives = min(LIVES + sum(gain for section in SECTIONS if (gain := section["life_gain"]) > 0), MAX_LIVES)
 
 # The cap rate in each section is taken to be the probability of not losing any lives in that section.
 # We assume the existence of a "single miss rate": the probability of losing one life in a section.
@@ -51,10 +56,6 @@ section_miss_rates = [
     (1.0 - section["rate"]) / (2.0 - section["rate"]) for section in SECTIONS
 ]
 
-assert LIVES > 0
-assert len(SECTIONS) > 0
-assert TRANSITIONS >= 0
-
 
 # Returns the PDF of run success (i.e. all sections cleared) over time.
 # The index of the starting section and number of lives can be customized.
@@ -64,11 +65,13 @@ def pdf(init_section, init_lives):
 
     pdist = defaultdict(float)
 
+    # The value at `state[t][s][l]` is the probability
+    # of being at section index `s` with `l` lives at `t` units of time.
     state = defaultdict(lambda: np.zeros((len(SECTIONS) + 1, max_simulation_lives)))
     new_state = defaultdict(lambda: np.zeros((len(SECTIONS) + 1, max_simulation_lives)))
 
     # Recursion base case
-    state[0.0][init_section][init_lives - 1] = 1.0
+    state[0][init_section][init_lives - 1] = 1.0
 
     for _ in range(TRANSITIONS):
         for time, probs in state.items():
