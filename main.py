@@ -61,7 +61,7 @@ section_miss_rates = [
 # The index of the starting section and number of lives can be customized.
 def pdf(init_section, init_lives):
     assert 0 <= init_section <= len(SECTIONS) - 1
-    assert 1 <= init_lives <= LIVES
+    assert 0 < init_lives <= max_simulation_lives
 
     pdist = defaultdict(float)
 
