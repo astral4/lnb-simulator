@@ -29,6 +29,14 @@ TRANSITIONS = 200
 
 # ============================ #
 
+# Calculate the number of places after the decimal point to round times to.
+# This addresses floating-point operation imprecision,
+# preventing `state` and `new_state` in the simulation from growing to too many entries
+# and avoiding inaccuracies with PDF calculation.
+# We add 1 because calculating `new_time_incomplete` involves dividing the time by 2,
+# which at most increases the decimal place by 1.
+decimal_precision = max([str(section["time"])[::-1].find(".") for section in SECTIONS]) + 1
+
 # Calculate the maximum number of lives that can be had at any point in the run.
 # This reduces the simulation state space to only what is needed to calculate the answer.
 max_simulation_lives = min(LIVES + sum([gain for section in SECTIONS if (gain := section["life_gain"]) > 0]), MAX_LIVES)
@@ -65,8 +73,8 @@ def pdf(init_section, init_lives):
     for _ in range(TRANSITIONS):
         for time, probs in state.items():
             for s_idx, section in enumerate(SECTIONS):
-                new_time_complete = round(time + section["time"], 2)
-                new_time_incomplete = round(time + section["time"] / 2, 2)
+                new_time_complete = round(time + section["time"], decimal_precision)
+                new_time_incomplete = round(time + section["time"] / 2, decimal_precision)
 
                 for life_count in range(max_simulation_lives):
                     old_prob = probs[s_idx][life_count]
